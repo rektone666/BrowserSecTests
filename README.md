@@ -28,7 +28,7 @@ python3 BrowserSecTests.py -f text -o /path/to/dir/test.txt
 
 # Compability issues  
 as this stage the BST it wokrs only in **Chrome/Chromium** borwsers ( unix env ). it should be works on dos machine if python and releated modules are installed .
-**its still in deep devlopemnts and the future upgrade will be focused on the "multi-platform" compability **
+**its still in deep testing and devlopments .. and the future upgrade will be focused on the "multi-platform" compability **
 
 ----------
 
