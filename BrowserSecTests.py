@@ -144,10 +144,6 @@ def execute_all_tests():
         test_name, test_info = extract_test_info(html_content)
         results[test_name] = test_info
 
-
-    # results = {}
-    # for test_path in test_paths:
-    #     print(f"\nExecuting test: {test_path}")
         
         # Execute the test using Selenium
         html_content = execute_test_with_selenium(test_path)
@@ -166,6 +162,6 @@ if __name__ == "__main__":
     execute_all_tests()
 
 
-    ##########
+    ###############
     #   Rekt023   #
-    ##########
+    ###############
