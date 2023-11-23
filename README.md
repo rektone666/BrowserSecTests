@@ -4,6 +4,7 @@ those test are focused to check how and what data can or cannot be retrived from
 it goes through 75 differts test , from VBScript, COOKIES and so on ... all thanks browserspy.dk ... 
 This is the frist version , its huge , dirty and relativily slow ... for now support only Chrome and Chormium ... 
 
+
 ---------------------
 # How to use 
 
@@ -20,11 +21,12 @@ python3 BrowserSecTests.py >> Output.txt
 
 
 
-Future Updates 
+Future Updates & improvments 
 
 - Adding outputs options  
 - Adding Compatibility for Firefox 
 - **Make the overall procedure faster**
+- make more clean and nice to read the final output 
 - may i will add some colors or fancy stuff 
 
 
