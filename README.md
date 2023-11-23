@@ -6,18 +6,24 @@ the code works around BrowserSpy.dk executing them automatically .
 ---------------------
 # How to use 
 
+- Install requirements.txt
+```bash
+pip install -r requirements.txt
+```
+
+
 straightforward e easy to use  : 
 
 - plain exectuon whit no commands as  json as default format ad it save the output in the directory where the code is execute
 
-```Python
+```bash
 python3 BrowserSecTests.py 
 
 ```
 
 - Specify format or output directory & file name 
 
-```Python
+```bash
 python3 BrowserSecTests.py -f text -o /path/to/dir/test.txt
 
 ```
