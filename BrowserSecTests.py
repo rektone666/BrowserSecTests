@@ -1,12 +1,17 @@
+import argparse
 import requests
+import concurrent.futures
+import json
+import dicttoxml
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromiumService
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.core.os_manager import ChromeType
 from tqdm import tqdm 
+from pygments import highlight, lexers, formatters
 
-
+#  Selenium test , options & chrome/chromium setup 
 def execute_test_with_selenium(test_path):
     url = f"https://browserspy.dk/{test_path}"
 
@@ -27,8 +32,7 @@ def execute_test_with_selenium(test_path):
 
     return html_content
 
-### BeautifulSoup need some checks  ####
-
+# Soup extractor for tests results 
 def extract_test_info(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     
@@ -59,7 +63,14 @@ def extract_test_info(html_content):
 
     return test_name, results
 
-def execute_all_tests():
+# Selenium  going through each test   
+def execute_single_test(test_path):
+    html_content = execute_test_with_selenium(test_path)
+    test_name, test_info = extract_test_info(html_content)
+    return test_name, test_info
+
+# all tests endpoints executed in parallel whit ThreadPoolExecutor
+def execute_all_tests(output_format, output_location):
     test_paths = [
         "accept.php",
         "activex.php",
@@ -137,29 +148,55 @@ def execute_all_tests():
         "windowsmediaplayer.php",
     ]
 
-    # timing bar  
     results = {}
-    for test_path in tqdm(test_paths, desc="Running Tests"):
-        html_content = execute_test_with_selenium(test_path)
-        test_name, test_info = extract_test_info(html_content)
-        results[test_name] = test_info
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {executor.submit(execute_single_test, test_path): test_path for test_path in test_paths}
 
-        
-        # Execute the test using Selenium
-        html_content = execute_test_with_selenium(test_path)
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(test_paths), desc="Running Tests"):
+            test_name, test_info = future.result()
+            results[test_name] = test_info
+       
+# Output , Formats & fancy colors * need some work here too
+    if output_format == "json":
+        json_output = json.dumps(results, indent=2, ensure_ascii=False)
+        formatted_json = highlight(json_output, lexers.JsonLexer(), formatters.TerminalFormatter())
+        with open(output_location, "w") as output_file:
+            output_file.write(formatted_json)
+        print(f"JSON output saved to {output_location}")
+    elif output_format == "xml":
+        xml_content = dicttoxml.dicttoxml(results)
+        with open(output_location, "wb") as output_file:
+            output_file.write(xml_content)
+        print(f"XML output saved to {output_location}")
+    elif output_format == "text":
+        print(f"\nResults:")
+        for test_name, test_info in results.items():
+            print(f"\nTest: {test_name}")
+            for prop, value in test_info.items():
+                print(f"{prop}: {value}")
 
-        #Process the HTML content with BeautifulSoup
-        test_name, test_info = extract_test_info(html_content)
-        results[test_name] = test_info
+# Splitting lines in help , need works on that
+class NewlineFormatter(argparse.RawTextHelpFormatter):
+    def _split_lines(self, text, width):
+        # Custom split lines method to preserve newlines
+        if text.startswith('R|'):
+            return text[2:].splitlines()  
+        return super()._split_lines(text, width)
 
-    print("\nResults:")
-    for test_name, test_info in results.items():
-        print(f"\nTest: {test_name}")
-        for prop, value in test_info.items():
-            print(f"{prop}: {value}")
-
+# Main  
 if __name__ == "__main__":
-    execute_all_tests()
+    parser = argparse.ArgumentParser(
+        description="A tiny tools for test your Browser OpSec.",
+        epilog="""Examples:
+  python3 BrowserSecTest.py - print out all the tests in json
+  BrowserSecTest.py -f txt -o /path/desired/tests""",
+        formatter_class=NewlineFormatter
+    )
+    parser.add_argument("-f", "--format", choices=["text", "json", "xml"], default="json", help="Output format (default: json)")
+    parser.add_argument("-o", "--output", default="output.json", help="Output file path (default: output.json)")
+    args = parser.parse_args()
+
+    execute_all_tests(args.format, args.output)
 
 
     ###############
