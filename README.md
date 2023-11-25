@@ -6,13 +6,10 @@ the code works around BrowserSpy.dk executing them automatically .
 ---------------------
 # How to use 
 
-- Install requirements.txt
-```bash
-pip install -r requirements.txt
-```
+On this version there is no more to run requirements.txt since BTS do it for you 
 
 
-straightforward e easy to use  : 
+execution remain the same   : 
 
 - plain exectuon whit no commands as  json as default format ad it save the output in the directory where the code is execute
 
@@ -33,19 +30,21 @@ python3 BrowserSecTests.py -f text -o /path/to/dir/test.txt
 ---------
 
 # Compability issues  
-as this stage the BST it wokrs only in **Chrome/Chromium** borwsers ( unix env ). it should be works on dos machine if python and releated modules are installed .
-**its still in deep testing and devlopments .. and the future upgrade will be focused on the "multi-platform" compability **
-
+BTS V2 should work whit no problem in windows and any linux distro and actually support CHROME/CHROMIUM , FIREFOX & INTERENT explorer . 
+If you have missing driver of your browser BTS should fix that and install the appropiate driver whit all the modules he needed .
+- YES IT ASK for permission if u want proceed
+- it wil create even a requirements.txt so if BTS has  any problem to install modules and divers needed u can stil use the good old requirements  
 ----------
-
 
 Future Upgrade & improvments 
 
-- Firefox & other boweser adaptation
-- xml output is a mess ,fixing it out and make it redable  (sincerly i do not why i put it in) 
-- Multi-Platform 
+the priority for now it slow down on this version and make improvements on this about since i had still to do tons of tests 
 
-i think its all for now
+then , if the projecet as a bit of sense : 
+
+- Mac compatibility
+- Try to make compatibile whit other popular browsers like safari or opera 
+- ? 
 
 again thanks to : <a href='https://browserspy.dk/'><img alt="BrowserSpy.dk button" width="80" height="15" src="https://browserspy.dk/pics/browserspybutton.jpg" /></a>
 
