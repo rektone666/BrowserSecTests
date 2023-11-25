@@ -2,26 +2,49 @@ import argparse
 import requests
 import concurrent.futures
 import json
-import dicttoxml
+import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromiumService
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
-from tqdm import tqdm 
+from selenium.webdriver.firefox.service import Service as GeckoService
+from selenium.webdriver.ie.service import Service as IEService
+import os
+import subprocess
+import colorama
 from pygments import highlight, lexers, formatters
 
-#  Selenium test , options & chrome/chromium setup 
-def execute_test_with_selenium(test_path):
+def install_required_modules():
+    required_modules = ["webdriver_manager", "pipreqs"]
+    for module in required_modules:
+        try:
+            __import__(module)
+        except ImportError:
+            subprocess.check_call(["pip", "install", module])
+
+def generate_requirements():
+    requirements = subprocess.check_output(["pip", "freeze"]).decode("utf-8")
+    with open("requirements.txt", "w") as file:
+        file.write(requirements)
+
+def execute_test_with_selenium(test_path, browser_type):
     url = f"https://browserspy.dk/{test_path}"
 
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--headless')  # no GUI popping out 
-
-    # ChromeDriver 
-    chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
-
-    driver = webdriver.Chrome(service=ChromiumService(chrome_driver_path), options=chrome_options)
+    if browser_type == "chrome":
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--log-level=3')
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        driver = webdriver.Chrome(service=ChromiumService(), options=options)
+    elif browser_type == "firefox":
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        options.add_argument('--log-level=3')
+        driver = webdriver.Firefox(service=GeckoService(), options=options)
+    elif browser_type == "ie":
+        driver = webdriver.Ie(service=IEService())
+    else:
+        raise ValueError("Invalid browser type")
 
     try:
         driver.get(url)
@@ -32,45 +55,24 @@ def execute_test_with_selenium(test_path):
 
     return html_content
 
-# Soup extractor for tests results 
 def extract_test_info(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # Check if h1 tag is present
-    h1_tag = soup.find('h1')
-    if h1_tag:
-        test_name = h1_tag.text.strip()
-    else:
-        test_name = "Test Name Not Found"
 
-    results = {}
+    test_name = soup.find('h1').text.strip() if soup.find('h1') else "Test Name Not Found"
 
-    # Check if there is a results table
     results_table = soup.find('table', class_='bspy')
+    results = {}
     if results_table:
         rows = results_table.find_all('tr')
-        for row in rows:
-            columns = row.find_all(['th', 'td'])
-            if len(columns) == 2:
-                property_name = columns[0].text.strip()
-                property_value = columns[1].text.strip()
-                results[property_name] = property_value
+        results = {columns[0].text.strip(): columns[1].text.strip() for row in rows for columns in [row.find_all(['th', 'td'])] if len(columns) == 2}
 
-    # Check if there is a div with class 'value'
     value_div = soup.find('div', class_='value')
     if value_div:
         results['Result'] = value_div.text.strip()
 
     return test_name, results
 
-# Selenium  going through each test   
-def execute_single_test(test_path):
-    html_content = execute_test_with_selenium(test_path)
-    test_name, test_info = extract_test_info(html_content)
-    return test_name, test_info
-
-# all tests endpoints executed in parallel whit ThreadPoolExecutor
-def execute_all_tests(output_format, output_location):
+def execute_all_tests(output_format, output_location, browser_type):
     test_paths = [
         "accept.php",
         "activex.php",
@@ -150,55 +152,67 @@ def execute_all_tests(output_format, output_location):
 
     results = {}
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(execute_single_test, test_path): test_path for test_path in test_paths}
+        futures = {executor.submit(execute_test_with_selenium, test_path, browser_type): test_path for test_path in test_paths}
 
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(test_paths), desc="Running Tests"):
-            test_name, test_info = future.result()
+            html_content = future.result()
+            test_name, test_info = extract_test_info(html_content)
             results[test_name] = test_info
-       
-# Output , Formats & fancy colors * need some work here too
+
     if output_format == "json":
-        json_output = json.dumps(results, indent=2, ensure_ascii=False)
-        formatted_json = highlight(json_output, lexers.JsonLexer(), formatters.TerminalFormatter())
         with open(output_location, "w") as output_file:
-            output_file.write(formatted_json)
-        print(f"JSON output saved to {output_location}")
+            json.dump(results, output_file, indent=2, ensure_ascii=False)
+        print(f"{colorama.Fore.GREEN}JSON output saved to {output_location}{colorama.Style.RESET_ALL}")
     elif output_format == "xml":
-        xml_content = dicttoxml.dicttoxml(results)
-        with open(output_location, "wb") as output_file:
-            output_file.write(xml_content)
-        print(f"XML output saved to {output_location}")
-    elif output_format == "text":
-        print(f"\nResults:")
+        root = ET.Element("root")
         for test_name, test_info in results.items():
-            print(f"\nTest: {test_name}")
+            test_element = ET.SubElement(root, test_name.replace(" ", ""))
+            for prop, value in test_info.items():
+                prop_element = ET.SubElement(test_element, prop.replace(" ", ""))
+                prop_element.text = value
+        tree = ET.ElementTree(root)
+        tree.write(output_location)
+        print(f"{colorama.Fore.GREEN}XML output saved to {output_location}{colorama.Style.RESET_ALL}")
+    elif output_format == "text":
+        print(f"\n{colorama.Fore.GREEN}Results:{colorama.Style.RESET_ALL}")
+        for test_name, test_info in results.items():
+            print(f"\n{colorama.Fore.CYAN}Test: {test_name}{colorama.Style.RESET_ALL}")
             for prop, value in test_info.items():
                 print(f"{prop}: {value}")
 
-# Splitting lines in help , need works on that
-class NewlineFormatter(argparse.RawTextHelpFormatter):
-    def _split_lines(self, text, width):
-        # Custom split lines method to preserve newlines
-        if text.startswith('R|'):
-            return text[2:].splitlines()  
-        return super()._split_lines(text, width)
+    if output_format == "json" and output_location == "output.json":
+        with open(output_location, "r") as output_file:
+            json_data = output_file.read()
+        colored_json_data = highlight(json_data, lexers.JsonLexer(), formatters.TerminalFormatter())
+        with open(output_location, "w") as output_file:
+            output_file.write(colored_json_data)
+        print(f"{colorama.Fore.GREEN}Colored JSON output saved to {output_location}{colorama.Style.RESET_ALL}")
 
-# Main  
 if __name__ == "__main__":
+    install_required_modules()
+
+    colorama.init()
+
     parser = argparse.ArgumentParser(
-        description="A tiny tools for test your Browser OpSec.",
+        description="A tiny tool to test your Browser OpSec.",
         epilog="""Examples:
-  python3 BrowserSecTest.py - print out all the tests in json
-  BrowserSecTest.py -f txt -o /path/desired/tests""",
-        formatter_class=NewlineFormatter
+    python3 BrowserSecTest.py - print out all the tests in json
+    BrowserSecTest.py -f txt -o /path/desired/tests""",
+        formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("-f", "--format", choices=["text", "json", "xml"], default="json", help="Output format (default: json)")
     parser.add_argument("-o", "--output", default="output.json", help="Output file path (default: output.json)")
+    parser.add_argument("-b", "--browser", choices=["chrome", "firefox", "ie"], default="chrome", help="Browser type (default: chrome)")
     args = parser.parse_args()
 
-    execute_all_tests(args.format, args.output)
+    if input("Do you want to install the required modules? (y/n): ").lower() in ["y", "yes"]:
+        generate_requirements()
+        subprocess.check_call(["pip", "install", "-r", "requirements.txt"])
+    else:
+        print("The required modules are not installed. The script may not work properly.")
 
+    execute_all_tests(args.format, args.output, args.browser)
 
-    ###############
-    #   Rekt023   #
-    ###############
+############
+# Rekt0x23 #
+############
